@@ -9,6 +9,9 @@ import Route
 import Url
 import Url.Builder
 
+import Page.Top
+import Page.Detail
+
 main : Program () Model Msg
 main =
     Browser.application
@@ -27,17 +30,19 @@ type alias Model =
 
 type Page
     = NotFound
-    | Top
-    | Detail
+    | Top Page.Top.Model
+    | Detail Page.Detail.Model
 
 init : () -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
 init flags url key =
-    Model key Top
+    Model key ( Top ( Page.Top.Model "aaa" 1 ) )
     |> goTo (Route.parse url)
 
 type Msg
     = UrlRequested Browser.UrlRequest
     | UrlChanged Url.Url
+    | TopMsg Page.Top.Msg
+    | DetailMsg Page.Detail.Msg
     | Loaded (Result Http.Error Page)
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -62,6 +67,30 @@ update msg model =
                 }
             , Cmd.none    
             )
+        TopMsg topMsg ->
+            case model.page of
+                Top topModel ->
+                    let 
+                        ( newModel, newCmd ) =
+                            Page.Top.update topMsg topModel
+                    in
+                        ( { model | page = Top newModel }
+                        , Cmd.map TopMsg newCmd
+                        )
+                _ ->
+                    ( model, Cmd.none )
+        DetailMsg detailMsg ->
+            case model.page of
+                Detail detailModel ->
+                    let 
+                        ( newModel, newCmd ) =
+                            Page.Detail.update detailMsg detailModel
+                    in
+                    ( { model | page = Top newModel }
+                    , Cmd.map DetailMsg newCmd
+                    )
+                _ ->
+                    ( model, Cmd.none )
 
 goTo : Maybe Route.Route -> Model -> ( Model, Cmd Msg )
 goTo maybeRoute model =
@@ -69,9 +98,21 @@ goTo maybeRoute model =
         Nothing ->
             ( { model | page = NotFound }, Cmd.none )
         Just Route.Top ->
-            ( { model | page = Top }, Cmd.none )
-        Just Route.Detail->
-            ( { model | page = Detail }, Cmd.none )
+            let
+                ( topModel, topCmd ) =
+                    Page.Top.init "aaa" 1
+            in
+            ( { model | page = Top topModel }
+            , Cmd.map TopMsg topCmd
+            )
+        Just Route.Detail ->
+            let
+                ( detailModel, detailCmd ) =
+                    Page.Detail.init "aaa" 1
+            in
+            ( { model | page = Detail detailModel }
+            , Cmd.map DetailMsg detailCmd
+            )
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
@@ -88,10 +129,12 @@ view model =
         , case model.page of
             NotFound ->
                 viewNotFound
-            Top ->
-                viewTop
-            Detail ->
-                viewDetail
+            Top topModel ->
+                Page.Top.view topModel
+                    |> Html.map TopMsg
+            Detail detailModel ->
+                Page.Detail.view detailModel
+                    |> Html.map DetailMsg
         ]
     }
 
